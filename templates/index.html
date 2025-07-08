@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Comparison Tool</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Document Comparison Tool</h1>
+            <p>Upload multiple files to compare their contents</p>
+        </div>
+
+        <div class="main-content">
+            <form id="comparison-form" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="files">Select files to compare (2+):</label>
+                    <input type="file" id="files" name="files" multiple required>
+                    <p class="hint">Hold CTRL/CMD to select multiple files</p>
+                </div>
+                <button type="submit" class="submit-btn">Compare Files</button>
+            </form>
+
+            <div id="loading" class="hidden">
+                <div class="spinner"></div>
+                <span>Processing files...</span>
+            </div>
+
+            <div id="results-container" class="hidden">
+                <h2>Comparison Results</h2>
+                
+                <!-- Similarity Interpretation Guide -->
+                <div class="similarity-guide">
+                    <h3>How to interpret similarity scores:</h3>
+                    <ul>
+                        <li><span class="low-sim">0-30%</span>: Minimal overlap (different documents)</li>
+                        <li><span class="medium-sim">30-70%</span>: Moderate sharing (possible common sources)</li>
+                        <li><span class="high-sim">70-100%</span>: High similarity (potential duplicates/plagiarism)</li>
+                    </ul>
+                </div>
+                
+                <div id="similarity-matrix" class="result-section"></div>
+                <div id="common-matches" class="result-section"></div>
+            </div>
+
+            <div id="error-message" class="error-message hidden"></div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById("comparison-form").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            
+            const form = e.target;
+            const loading = document.getElementById("loading");
+            const results = document.getElementById("results-container");
+            const errorMsg = document.getElementById("error-message");
+            
+            // Reset UI
+            loading.classList.remove("hidden");
+            results.classList.add("hidden");
+            errorMsg.classList.add("hidden");
+            
+            try {
+                const formData = new FormData(form);
+                const response = await fetch("/compare_folder", {
+                    method: "POST",
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || "Server error");
+                }
+                
+                const data = await response.json();
+                displayResults(data);
+                results.classList.remove("hidden");
+            } catch (error) {
+                errorMsg.textContent = error.message;
+                errorMsg.classList.remove("hidden");
+                console.error("Error:", error);
+            } finally {
+                loading.classList.add("hidden");
+            }
+        });
+
+        function displayResults(data) {
+            const matrixContainer = document.getElementById("similarity-matrix");
+            const matchesContainer = document.getElementById("common-matches");
+            
+            // Display similarity matrix
+            matrixContainer.innerHTML = generateMatrixHTML(data.similarity_matrix);
+            
+            // Display common matches
+            if (data.common_matches && data.common_matches.length > 0) {
+                matchesContainer.innerHTML = data.common_matches.map(match => `
+                    <div class="match-card">
+                        <div class="match-text">${escapeHtml(match.text)}</div>
+                        <div class="file-list">Found in: ${match.files}</div>
+                        <div class="match-count">Appears in ${match.count} files</div>
+                    </div>
+                `).join('');
+            } else {
+                matchesContainer.innerHTML = "<p>No significant common content found</p>";
+            }
+        }
+
+        function generateMatrixHTML(matrix) {
+            const files = Object.keys(matrix);
+            if (files.length === 0) return "<p>No comparison data available</p>";
+            
+            let html = `<table><tr><th></th>`;
+            
+            // Header row
+            files.forEach(file => html += `<th>${shortenFilename(file)}</th>`);
+            html += "</tr>";
+            
+            // Data rows
+            files.forEach(file1 => {
+                html += `<tr><td><strong>${shortenFilename(file1)}</strong></td>`;
+                
+                // Find max similarity in this row (excluding self-comparison)
+                let maxSimilarity = 0;
+                files.forEach(file2 => {
+                    if (file1 !== file2 && matrix[file1][file2] > maxSimilarity) {
+                        maxSimilarity = matrix[file1][file2];
+                    }
+                });
+                
+                // Generate cells
+                files.forEach(file2 => {
+                    const similarity = matrix[file1][file2] || '-';
+                    const similarityClass = getSimilarityClass(similarity);
+                    const isMax = (similarity === maxSimilarity && file1 !== file2);
+                    
+                    html += `<td class="similarity-cell ${isMax ? 'max-similarity' : ''}" 
+                              data-similarity="${similarityClass}">
+                              ${typeof similarity === 'number' ? similarity + '%' : similarity}
+                            </td>`;
+                });
+                html += "</tr>";
+            });
+            
+            return html + "</table>";
+        }
+        function getSimilarityClass(similarity) {
+            if (typeof similarity !== 'number') return 'none';
+            if (similarity >= 70) return 'high';
+            if (similarity >= 30) return 'medium';
+            return 'low';
+        }
+
+        function shortenFilename(filename) {
+            return filename.length > 15 
+                ? filename.substring(0, 6) + '...' + filename.slice(-6)
+                : filename;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
