@@ -33,6 +33,7 @@
         "numpy",
         "opencv",
         "openpyxl",
+        "pdfminer",
         "pdfreader",
         "preshed",
         "pycparser",
