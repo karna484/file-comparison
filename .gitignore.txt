@@ -1,6 +1,11 @@
+# Python
 __pycache__/
 *.pyc
-uploads/
+*.pyo
+*.pyd
+venv/
 .env
-*.whl
-*.db
+*.env
+
+# VS Code
+.vscode/

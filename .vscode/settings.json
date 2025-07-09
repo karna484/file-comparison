@@ -36,6 +36,7 @@
         "pdfminer",
         "pdfreader",
         "preshed",
+        "pycache",
         "pycparser",
         "pycryptodome",
         "pydantic",
@@ -57,6 +58,7 @@
         "typer",
         "tzdata",
         "urllib",
+        "venv",
         "Werkzeug",
         "xmlfile"
     ]
